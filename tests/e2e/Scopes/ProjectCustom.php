@@ -22,7 +22,7 @@ trait ProjectCustom
         if (!empty(self::$project) && !$fresh) {
             return self::$project;
         }
-
+        var_dump("running teams");
         $team = $this->client->call(Client::METHOD_POST, '/teams', [
             'origin' => 'http://localhost',
             'content-type' => 'application/json',
@@ -32,6 +32,8 @@ trait ProjectCustom
             'teamId' => ID::unique(),
             'name' => 'Demo Project Team',
         ]);
+        var_dump("teams");
+        var_dump($team);
         $this->assertEquals(201, $team['headers']['status-code']);
         $this->assertEquals('Demo Project Team', $team['body']['name']);
         $this->assertNotEmpty($team['body']['$id']);

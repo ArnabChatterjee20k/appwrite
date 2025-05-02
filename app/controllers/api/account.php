@@ -311,7 +311,6 @@ App::post('/v1/account')
     ->inject('dbForProject')
     ->inject('hooks')
     ->action(function (string $userId, string $email, string $password, string $name, Request $request, Response $response, Document $user, Document $project, Database $dbForProject, Hooks $hooks) {
-
         $email = \strtolower($email);
         if ('console' === $project->getId()) {
             $whitelistEmails = $project->getAttribute('authWhitelistEmails');

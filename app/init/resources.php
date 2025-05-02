@@ -272,7 +272,8 @@ App::setResource('user', function ($mode, $project, $console, $request, $respons
 
     $dbForProject->setMetadata('user', $user->getId());
     $dbForPlatform->setMetadata('user', $user->getId());
-
+    var_dump("user ");
+    var_dump($user);
     return $user;
 }, ['mode', 'project', 'console', 'request', 'response', 'dbForProject', 'dbForPlatform']);
 
@@ -282,11 +283,11 @@ App::setResource('project', function ($dbForPlatform, $request, $console) {
     /** @var Utopia\Database\Document $console */
 
     $projectId = $request->getParam('project', $request->getHeader('x-appwrite-project', ''));
-
     if (empty($projectId) || $projectId === 'console') {
+        var_dump("console project");
         return $console;
     }
-
+    
     $project = Authorization::skip(fn () => $dbForPlatform->getDocument('projects', $projectId));
 
     return $project;
@@ -318,15 +319,18 @@ App::setResource('console', function () {
 }, []);
 
 App::setResource('dbForProject', function (Group $pools, Database $dbForPlatform, Cache $cache, Document $project) {
+    var_dump("running db for project");
     if ($project->isEmpty() || $project->getId() === 'console') {
         return $dbForPlatform;
     }
 
     try {
         $dsn = new DSN($project->getAttribute('database'));
+        var_dump("postgresdsn ".$dsn->getHost());
     } catch (\InvalidArgumentException) {
         // TODO: Temporary until all projects are using shared tables
         $dsn = new DSN('mysql://' . $project->getAttribute('database'));
+        var_dump("mysql ".$dsn->getHost());
     }
 
     $dbAdapter = $pools
@@ -659,7 +663,7 @@ App::setResource('promiseAdapter', function ($register) {
 }, ['register']);
 
 App::setResource('schema', function ($utopia, $dbForProject) {
-
+    var_dump("running schema resource");
     $complexity = function (int $complexity, array $args) {
         $queries = Query::parseQueries($args['queries'] ?? []);
         $query = Query::getByType($queries, [Query::TYPE_LIMIT])[0] ?? null;
@@ -790,7 +794,9 @@ App::setResource('smsRates', function () {
 
 App::setResource('team', function (Document $project, Database $dbForPlatform, App $utopia, Request $request) {
     $teamInternalId = '';
+    var_dump("project id ".$project->getId()." ".$project->getInternalId());
     if ($project->getId() !== 'console') {
+        var_dump("logging....");
         $teamInternalId = $project->getAttribute('teamInternalId', '');
     } else {
         $route = $utopia->match($request);

@@ -82,7 +82,7 @@ App::post('/v1/teams')
     ->inject('dbForProject')
     ->inject('queueForEvents')
     ->action(function (string $teamId, string $name, array $roles, Response $response, Document $user, Database $dbForProject, Event $queueForEvents) {
-
+        var_dump("running api teams");
         $isPrivilegedUser = Auth::isPrivilegedUser(Authorization::getRoles());
         $isAppUser = Auth::isAppUser(Authorization::getRoles());
 

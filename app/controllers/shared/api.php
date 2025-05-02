@@ -189,6 +189,7 @@ App::init()
     ->inject('team')
     ->inject('apiKey')
     ->action(function (App $utopia, Request $request, Database $dbForPlatform, Database $dbForProject, Audit $queueForAudits, Document $project, Document $user, ?Document $session, array $servers, string $mode, Document $team, ?Key $apiKey) {
+        var_dump("common route");
         $route = $utopia->getRoute();
 
         if ($project->isEmpty()) {

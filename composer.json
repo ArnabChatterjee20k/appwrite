@@ -16,6 +16,13 @@
         "format": "vendor/bin/pint",
         "bench": "vendor/bin/phpbench run --report=benchmark"
     },
+    "repositories": [
+    {
+      "type": "vcs",
+      "url": "https://github.com/ArnabChatterjee20k/php-utopia-database.git"
+    }
+  ],
+
     "autoload": {
         "psr-4": {
             "Appwrite\\": "src/Appwrite",
@@ -51,7 +58,7 @@
         "utopia-php/cache": "0.12.*",
         "utopia-php/cli": "0.15.*",
         "utopia-php/config": "0.2.*",
-        "utopia-php/database": "0.66.*",
+        "utopia-php/database": "dev-fix/pg-adapter as 0.66.6",
         "utopia-php/domains": "0.5.*",
         "utopia-php/dsn": "0.2.1",
         "utopia-php/framework": "0.33.*",

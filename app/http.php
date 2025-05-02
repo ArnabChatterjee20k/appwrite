@@ -199,11 +199,11 @@ function createDatabase(App $app, string $resourceKey, string $dbName, array $co
         if (($collection['$collection'] ?? '') !== Database::METADATA) {
             continue;
         }
-
+        
         if (!$database->getCollection($key)->isEmpty()) {
             continue;
         }
-
+        
         Console::info("    └── Creating collection: {$collection['$id']}...");
 
         $attributes = array_map(fn ($attr) => new Document([
@@ -382,13 +382,23 @@ $http->on(Constant::EVENT_REQUEST, function (SwooleRequest $swooleRequest, Swool
     $request = new Request($swooleRequest);
     $response = new Response($swooleResponse);
 
+    // 📥 Log incoming request details
+    Console::info('[REQUEST] URI: ' . $request->getURI());
+    Console::info('[REQUEST] Method: ' . $swooleRequest->server['request_method']);
+    Console::info('[REQUEST] Headers: ' . \json_encode($swooleRequest->header));
+    Console::info('[REQUEST] Query Params: ' . \json_encode($swooleRequest->get));
+    Console::info('[REQUEST] Body: ' . $swooleRequest->rawContent());
+
     if (Files::isFileLoaded($request->getURI())) {
-        $time = (60 * 60 * 24 * 365 * 2); // 45 days cache
+        $time = (60 * 60 * 24 * 365 * 2); // 2 years cache
+
+        // 📦 Log static file serving
+        Console::info('[STATIC FILE] Serving file: ' . $request->getURI());
 
         $response
             ->setContentType(Files::getFileMimeType($request->getURI()))
             ->addHeader('Cache-Control', 'public, max-age=' . $time)
-            ->addHeader('Expires', \date('D, d M Y H:i:s', \time() + $time) . ' GMT') // 45 days cache
+            ->addHeader('Expires', \date('D, d M Y H:i:s', \time() + $time) . ' GMT')
             ->send(Files::getFileContents($request->getURI()));
 
         return;
@@ -396,7 +406,7 @@ $http->on(Constant::EVENT_REQUEST, function (SwooleRequest $swooleRequest, Swool
 
     $app = new App('UTC');
     $app->setCompression(System::getEnv('_APP_COMPRESSION_ENABLED', 'enabled') === 'enabled');
-    $app->setCompressionMinSize(intval(System::getEnv('_APP_COMPRESSION_MIN_SIZE_BYTES', '1024'))); // 1KB
+    $app->setCompressionMinSize(intval(System::getEnv('_APP_COMPRESSION_MIN_SIZE_BYTES', '1024')));
 
     $pools = $register->get('pools');
     App::setResource('pools', fn () => $pools);
@@ -405,21 +415,24 @@ $http->on(Constant::EVENT_REQUEST, function (SwooleRequest $swooleRequest, Swool
         Authorization::cleanRoles();
         Authorization::setRole(Role::any()->toString());
 
+        // 🛠️ Before app runs
+        Console::info('[APP] Running app with URI: ' . $request->getURI());
+
         $app->run($request, $response);
+
+        // 📤 Log response content after app runs
+        Console::info('[RESPONSE] Headers: ' . \json_encode($response->getHeaders()));
+
     } catch (\Throwable $th) {
         $version = System::getEnv('_APP_VERSION', 'UNKNOWN');
 
         $logger = $app->getResource("logger");
         if ($logger) {
             try {
-                /** @var Utopia\Database\Document $user */
                 $user = $app->getResource('user');
-            } catch (\Throwable $_th) {
-                // All good, user is optional information for logger
-            }
+            } catch (\Throwable $_th) {}
 
             $route = $app->getRoute();
-
             $log = $app->getResource("log");
 
             if (isset($user) && !$user->isEmpty()) {
@@ -438,7 +451,6 @@ $http->on(Constant::EVENT_REQUEST, function (SwooleRequest $swooleRequest, Swool
             $log->addTag('url', $route->getPath());
             $log->addTag('verboseType', get_class($th));
             $log->addTag('code', $th->getCode());
-            // $log->addTag('projectId', $project->getId()); // TODO: Figure out how to get ProjectID, if it becomes relevant
             $log->addTag('hostname', $request->getHostname());
             $log->addTag('locale', (string)$request->getParam('locale', $request->getHeader('x-appwrite-locale', '')));
 
@@ -448,10 +460,9 @@ $http->on(Constant::EVENT_REQUEST, function (SwooleRequest $swooleRequest, Swool
             $log->addExtra('roles', Authorization::getRoles());
 
             $sdk = $route->getLabel("sdk", false);
-
             $action = 'UNKNOWN_NAMESPACE.UNKNOWN.METHOD';
+
             if (!empty($sdk)) {
-                /** @var Appwrite\SDK\Method $sdk */
                 $action = $sdk->getNamespace() . '.' . $sdk->getMethodName();
             }
 
@@ -464,7 +475,7 @@ $http->on(Constant::EVENT_REQUEST, function (SwooleRequest $swooleRequest, Swool
             try {
                 $responseCode = $logger->addLog($log);
                 Console::info('Error log pushed with status code: ' . $responseCode);
-            } catch (Throwable $th) {
+            } catch (\Throwable $th) {
                 Console::error('Error pushing log: ' . $th->getMessage());
             }
         }
@@ -476,7 +487,7 @@ $http->on(Constant::EVENT_REQUEST, function (SwooleRequest $swooleRequest, Swool
 
         $swooleResponse->setStatusCode(500);
 
-        $output = ((App::isDevelopment())) ? [
+        $output = (App::isDevelopment()) ? [
             'message' => 'Error: ' . $th->getMessage(),
             'code' => 500,
             'file' => $th->getFile(),
@@ -489,7 +500,11 @@ $http->on(Constant::EVENT_REQUEST, function (SwooleRequest $swooleRequest, Swool
             'version' => $version,
         ];
 
+        // 📤 Log error response
+        Console::info('[ERROR RESPONSE] Body: ' . \json_encode($output));
+
         $swooleResponse->end(\json_encode($output));
+
     } finally {
         $pools->reclaim();
     }
