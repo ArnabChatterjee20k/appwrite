@@ -898,393 +898,7 @@ class RealtimeCustomClientTest extends Scope
         $this->assertNotEmpty($response['data']['payload']);
         $this->assertEquals('Bradley Cooper', $response['data']['payload']['name']);
 
-        // test bulk create
-        $documents = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections/{$actorsId}/documents", array_merge([
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $this->getProject()['$id'],
-            'x-appwrite-key' => $this->getProject()['apiKey']
-        ]), [
-            'documents' => [
-                [
-                    '$id' => ID::unique(),
-                    'name' => 'Robert Downey Jr.',
-                    '$permissions' => [
-                        Permission::read(Role::any()),
-                        Permission::update(Role::any()),
-                        Permission::delete(Role::any()),
-                    ],
-                ],
-                [
-                    '$id' => ID::unique(),
-                    'name' => 'Scarlett Johansson',
-                    '$permissions' => [
-                        Permission::read(Role::any()),
-                        Permission::update(Role::any()),
-                        Permission::delete(Role::any()),
-                    ],
-                ]
-            ],
-        ]);
-        $response = json_decode($client->receive(), true);
-        $this->assertArrayHasKey('type', $response);
-        $this->assertArrayHasKey('data', $response);
-        $this->assertEquals('event', $response['type']);
-        $this->assertNotEmpty($response['data']);
-        $this->assertArrayHasKey('timestamp', $response['data']);
-        $this->assertCount(4, $response['data']['channels']);
-        $this->assertContains("databases.{$databaseId}.collections.{$actorsId}.documents.create", $response['data']['events']);
-        $this->assertContains("databases.*.collections.*.documents.create", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}.collections.*.documents.create", $response['data']['events']);
-        $this->assertContains("databases.*.collections.{$actorsId}.documents.create", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}.collections.{$actorsId}.documents", $response['data']['events']);
-        $this->assertContains("databases.*.collections.*.documents", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}.collections.*.documents", $response['data']['events']);
-        $this->assertContains("databases.*.collections.{$actorsId}.documents", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}.collections.{$actorsId}", $response['data']['events']);
-        $this->assertContains("databases.*.collections.*", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}.collections.*", $response['data']['events']);
-        $this->assertContains("databases.*.collections.{$actorsId}", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}.documents.create", $response['data']['events']);
-        $this->assertContains("databases.*.documents.create", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}", $response['data']['events']);
-        $this->assertContains("databases.*", $response['data']['events']);
-        $this->assertNotEmpty($response['data']['payload']);
-        $this->assertIsArray($response['data']['payload']);
-        $this->assertCount(2, $response['data']['payload']);
-        $this->assertEquals(2, $response['data']['payload']['total']);
-        $names = array_column($response['data']['payload']['documents'], 'name');
-        $this->assertContains('Robert Downey Jr.', $names);
-        $this->assertContains('Scarlett Johansson', $names);
-        foreach ($response['data']['payload']['documents'] as $docPayload) {
-            $this->assertArrayHasKey('$id', $docPayload);
-            $this->assertArrayHasKey('name', $docPayload);
-            $this->assertArrayHasKey('$permissions', $docPayload);
-            $this->assertIsArray($docPayload['$permissions']);
-            $this->assertContains(Permission::read(Role::any()), $docPayload['$permissions']);
-            $this->assertContains(Permission::update(Role::any()), $docPayload['$permissions']);
-            $this->assertContains(Permission::delete(Role::any()), $docPayload['$permissions']);
-        }
-
-        // test bulk update
-        $response = $this->client->call(Client::METHOD_PATCH, '/databases/' . $databaseId . '/collections/' . $actorsId . '/documents/', array_merge([
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $this->getProject()['$id'],
-            'x-appwrite-key' => $this->getProject()['apiKey']
-        ]), [
-            'data' => [
-                'name' => 'Marvel Hero'
-            ],
-        ]);
-        $this->assertEquals(200, $response['headers']['status-code']);
-        $response = json_decode($client->receive(), true);
-        $this->assertArrayHasKey('type', $response);
-        $this->assertArrayHasKey('data', $response);
-        $this->assertEquals('event', $response['type']);
-        $this->assertNotEmpty($response['data']);
-        $this->assertArrayHasKey('timestamp', $response['data']);
-        $this->assertCount(4, $response['data']['channels']);
-        $this->assertContains("databases.{$databaseId}.collections.{$actorsId}.documents.update", $response['data']['events']);
-        $this->assertContains("databases.*.collections.*.documents.update", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}.collections.{$actorsId}.documents", $response['data']['events']);
-        $this->assertContains("databases.*.collections.*.documents", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}.collections.*.documents.update", $response['data']['events']);
-        $this->assertContains("databases.*.documents.update", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}", $response['data']['events']);
-        $this->assertContains("databases.*", $response['data']['events']);
-        $this->assertNotEmpty($response['data']['payload']);
-        $this->assertIsArray($response['data']['payload']);
-        $this->assertCount(3, $response['data']['payload']['documents']);
-        foreach ($response['data']['payload']['documents'] as $updatedDoc) {
-            $this->assertArrayHasKey('$id', $updatedDoc);
-            $this->assertEquals('Marvel Hero', $updatedDoc['name']);
-            $this->assertArrayHasKey('$permissions', $updatedDoc);
-        }
-
-        // Test bulk delete
-        $response = $this->client->call(Client::METHOD_DELETE, "/databases/{$databaseId}/collections/{$actorsId}/documents", array_merge([
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $this->getProject()['$id'],
-            'x-appwrite-key' => $this->getProject()['apiKey']
-        ]));
-
-        $this->assertEquals(200, $response['headers']['status-code']);
-        $response = json_decode($client->receive(), true);
-        $this->assertArrayHasKey('type', $response);
-        $this->assertArrayHasKey('data', $response);
-        $this->assertEquals('event', $response['type']);
-        $this->assertNotEmpty($response['data']);
-        $this->assertArrayHasKey('timestamp', $response['data']);
-        $this->assertCount(4, $response['data']['channels']);
-        $this->assertContains("databases.{$databaseId}.collections.{$actorsId}.documents.delete", $response['data']['events']);
-        $this->assertContains("databases.*.collections.*.documents.delete", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}.collections.{$actorsId}.documents", $response['data']['events']);
-        $this->assertContains("databases.*.collections.*.documents", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}.collections.*.documents.delete", $response['data']['events']);
-        $this->assertContains("databases.*.documents.delete", $response['data']['events']);
-        $this->assertContains("databases.{$databaseId}", $response['data']['events']);
-        $this->assertContains("databases.*", $response['data']['events']);
-
-        $this->assertNotEmpty($response['data']['payload']);
-        $this->assertIsArray($response['data']['payload']);
-        $this->assertCount(3, $response['data']['payload']['documents']);
-
-        foreach ($response['data']['payload']['documents'] as $deletedDoc) {
-            $this->assertArrayHasKey('$id', $deletedDoc);
-            $this->assertArrayHasKey('name', $deletedDoc);
-            $this->assertArrayHasKey('$permissions', $deletedDoc);
-            $this->assertIsArray($deletedDoc['$permissions']);
-            $this->assertContains(Permission::read(Role::any()), $deletedDoc['$permissions']);
-            $this->assertContains(Permission::update(Role::any()), $deletedDoc['$permissions']);
-            $this->assertContains(Permission::delete(Role::any()), $deletedDoc['$permissions']);
-        }
-
         $client->close();
-    }
-
-    public function testChannelDatabaseBulkOperationMultipleClient()
-    {
-        // user with api key will do operations and other valid users
-        $user1 = $this->getUser(true);
-        $user1Id = $user1['$id'];
-        $session = $user1['session'] ?? '';
-        $projectId = $this->getProject()['$id'];
-
-        $client1 = $this->getWebsocket(['documents', 'collections'], [
-            'origin' => 'http://localhost',
-            'cookie' => 'a_session_' . $projectId . '=' . $session
-        ]);
-
-        $response = json_decode($client1->receive(), true);
-
-        $this->assertArrayHasKey('type', $response);
-        $this->assertArrayHasKey('data', $response);
-        $this->assertEquals('connected', $response['type']);
-        $this->assertNotEmpty($response['data']);
-
-        $user2 = $this->getUser(override:true);
-        $user2Id = $user2['$id'];
-        $session = $user2['session'] ?? '';
-        $projectId = $this->getProject()['$id'];
-
-        $client2 = $this->getWebsocket(['documents', 'collections'], [
-            'origin' => 'http://localhost',
-            'cookie' => 'a_session_' . $projectId . '=' . $session
-        ]);
-
-        $response = json_decode($client2->receive(), true);
-
-        $this->assertArrayHasKey('type', $response);
-        $this->assertArrayHasKey('data', $response);
-        $this->assertEquals('connected', $response['type']);
-        $this->assertNotEmpty($response['data']);
-
-
-        /**
-         * Test Database Create
-         */
-        $database = $this->client->call(Client::METHOD_POST, '/databases', array_merge([
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $this->getProject()['$id'],
-            'x-appwrite-key' => $this->getProject()['apiKey']
-        ]), [
-            'databaseId' => ID::unique(),
-            'name' => 'Actors DB',
-        ]);
-
-        $databaseId = $database['body']['$id'];
-
-        /**
-         * Test Collection Create
-         */
-        $actors = $this->client->call(Client::METHOD_POST, '/databases/' . $databaseId . '/collections', array_merge([
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $this->getProject()['$id'],
-            'x-appwrite-key' => $this->getProject()['apiKey']
-        ]), [
-            'collectionId' => ID::unique(),
-            'name' => 'Actors',
-            'permissions' => [
-                Permission::create(Role::user($this->getUser()['$id'])),
-            ],
-            'documentSecurity' => true,
-        ]);
-
-        $actorsId = $actors['body']['$id'];
-
-        $name = $this->client->call(Client::METHOD_POST, '/databases/' . $databaseId . '/collections/' . $actorsId . '/attributes/string', array_merge([
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $this->getProject()['$id'],
-            'x-appwrite-key' => $this->getProject()['apiKey']
-        ]), [
-            'key' => 'name',
-            'size' => 256,
-            'required' => true,
-        ]);
-
-        $this->assertEquals(202, $name['headers']['status-code']);
-        $this->assertEquals('name', $name['body']['key']);
-        $this->assertEquals('string', $name['body']['type']);
-        $this->assertEquals(256, $name['body']['size']);
-        $this->assertTrue($name['body']['required']);
-
-        sleep(2);
-
-        // create
-        $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections/{$actorsId}/documents", array_merge([
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $this->getProject()['$id'],
-            'x-appwrite-key' => $this->getProject()['apiKey']
-        ]), [
-            'documents' => [
-                [
-                    '$id' => ID::unique(),
-                    'name' => 'Any',
-                    '$permissions' => [
-                        Permission::read(Role::any()),
-                        Permission::update(Role::any()),
-                        Permission::delete(Role::any()),
-                    ],
-                ],
-                [
-                    '$id' => ID::unique(),
-                    'name' => 'Users',
-                    '$permissions' => [
-                        Permission::read(Role::users()),
-                        Permission::update(Role::users()),
-                        Permission::delete(Role::users()),
-                    ],
-                ],
-                [
-                    '$id' => ID::unique(),
-                    'name' => 'User1',
-                    '$permissions' => [
-                        Permission::read(Role::user($user1Id)),
-                    ],
-                ],
-                [
-                    '$id' => ID::unique(),
-                    'name' => 'User2',
-                    '$permissions' => [
-                        Permission::read(Role::user($user2Id)),
-                    ],
-                ],
-                [
-                    '$id' => ID::unique(),
-                    'name' => 'User2-1',
-                    '$permissions' => [
-                        Permission::read(Role::user($user2Id)),
-                    ],
-                ]
-            ],
-        ]);
-
-        // Receive and assert for client1
-        $response1 = json_decode($client1->receive(), true);
-
-        $this->assertNotEmpty($response1['data']['payload']);
-        $this->assertIsArray($response1['data']['payload']);
-        $this->assertArrayHasKey('total', $response1['data']['payload']);
-        $this->assertIsArray($response1['data']['payload']['documents']);
-
-        // Expected total for client1
-        $this->assertEquals(3, $response1['data']['payload']['total']);
-
-        foreach ($response1['data']['payload']['documents'] as $docPayload) {
-            $this->assertArrayHasKey('$id', $docPayload);
-            $this->assertArrayHasKey('name', $docPayload);
-            $this->assertArrayHasKey('$permissions', $docPayload);
-            $this->assertIsArray($docPayload['$permissions']);
-        }
-
-        // Receive and assert for client2
-        $response2 = json_decode($client2->receive(), true);
-
-        $this->assertNotEmpty($response2['data']['payload']);
-        $this->assertIsArray($response2['data']['payload']);
-        $this->assertArrayHasKey('total', $response2['data']['payload']);
-        $this->assertIsArray($response2['data']['payload']['documents']);
-
-        // Expected total for client2
-        $this->assertEquals(4, $response2['data']['payload']['total']);
-
-        foreach ($response2['data']['payload']['documents'] as $docPayload) {
-            $this->assertArrayHasKey('$id', $docPayload);
-            $this->assertArrayHasKey('name', $docPayload);
-            $this->assertArrayHasKey('$permissions', $docPayload);
-            $this->assertIsArray($docPayload['$permissions']);
-        }
-
-
-        // Perform bulk update
-        $response = $this->client->call(Client::METHOD_PATCH, "/databases/{$databaseId}/collections/{$actorsId}/documents/", array_merge([
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $this->getProject()['$id'],
-            'x-appwrite-key' => $this->getProject()['apiKey']
-        ]), [
-            'data' => [
-                'name' => 'Marvel Hero'
-            ],
-        ]);
-
-        $this->assertEquals(200, $response['headers']['status-code']);
-
-        // Receive and assert for client1
-        $response1 = json_decode($client1->receive(), true);
-        $this->assertNotEmpty($response1['data']['payload']);
-        $this->assertIsArray($response1['data']['payload']);
-        $this->assertCount(3, $response1['data']['payload']['documents']);
-        foreach ($response1['data']['payload']['documents'] as $updatedDoc) {
-            $this->assertArrayHasKey('$id', $updatedDoc);
-            $this->assertEquals('Marvel Hero', $updatedDoc['name']);
-            $this->assertArrayHasKey('$permissions', $updatedDoc);
-        }
-
-        // Receive and assert for client2
-        $response2 = json_decode($client2->receive(), true);
-        $this->assertNotEmpty($response2['data']['payload']);
-        $this->assertIsArray($response2['data']['payload']);
-        $this->assertCount(4, $response2['data']['payload']['documents']);
-        foreach ($response2['data']['payload']['documents'] as $updatedDoc) {
-            $this->assertArrayHasKey('$id', $updatedDoc);
-            $this->assertEquals('Marvel Hero', $updatedDoc['name']);
-            $this->assertArrayHasKey('$permissions', $updatedDoc);
-        }
-
-        // Perform bulk delete
-        $response = $this->client->call(Client::METHOD_DELETE, "/databases/{$databaseId}/collections/{$actorsId}/documents", array_merge([
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $this->getProject()['$id'],
-            'x-appwrite-key' => $this->getProject()['apiKey']
-        ]));
-
-        $this->assertEquals(200, $response['headers']['status-code']);
-
-        // Receive and assert for client1
-        $response1 = json_decode($client1->receive(), true);
-        $this->assertNotEmpty($response1['data']['payload']);
-        $this->assertIsArray($response1['data']['payload']);
-        $this->assertCount(3, $response1['data']['payload']['documents']);
-        foreach ($response1['data']['payload']['documents'] as $deletedDoc) {
-            $this->assertArrayHasKey('$id', $deletedDoc);
-            $this->assertArrayHasKey('name', $deletedDoc);
-            $this->assertArrayHasKey('$permissions', $deletedDoc);
-            $this->assertIsArray($deletedDoc['$permissions']);
-        }
-
-        // Receive and assert for client2
-        $response2 = json_decode($client2->receive(), true);
-        $this->assertNotEmpty($response2['data']['payload']);
-        $this->assertIsArray($response2['data']['payload']);
-        $this->assertCount(4, $response2['data']['payload']['documents']);
-        foreach ($response2['data']['payload']['documents'] as $deletedDoc) {
-            $this->assertArrayHasKey('$id', $deletedDoc);
-            $this->assertArrayHasKey('name', $deletedDoc);
-            $this->assertArrayHasKey('$permissions', $deletedDoc);
-            $this->assertIsArray($deletedDoc['$permissions']);
-        }
-
-        $client1->close();
-        $client2->close();
     }
 
     public function testChannelDatabaseCollectionPermissions()
@@ -1682,10 +1296,10 @@ class RealtimeCustomClientTest extends Scope
             'x-appwrite-key' => $this->getProject()['apiKey']
         ], [
             'functionId' => ID::unique(),
-            'name' => 'Test',
+            'name' => 'Test timeout execution',
             'execute' => ['users'],
-            'runtime' => 'php-8.0',
-            'entrypoint' => 'index.php',
+            'runtime' => 'node-22',
+            'entrypoint' => 'index.js',
             'timeout' => 10,
         ]);
 
@@ -1699,7 +1313,6 @@ class RealtimeCustomClientTest extends Scope
             'x-appwrite-project' => $this->getProject()['$id'],
             'x-appwrite-key' => $this->getProject()['apiKey']
         ]), [
-            'entrypoint' => 'index.php',
             'code' => $this->packageFunction('timeout'),
             'activate' => true
         ]);
@@ -2005,8 +1618,154 @@ class RealtimeCustomClientTest extends Scope
      *      In above cases -> both the params will be at max
      * 2. Best case -> When some docs dont target any users. More the number , more we reach towards O(Documents)
      */
-
     public function testRealtimeBulkBenchmarkPerformanceWithUniqueRoleDocMap()
+    {
+        $projectId = $this->getProject()['$id'];
+        $apiKey = $this->getProject()['apiKey'];
+        $totalClients = 100;
+        $subsPerClient = 10;
+        $clients = [];
+        $users = [];
+
+        // Step 1: Create Users and WebSocket Clients
+        for ($i = 0; $i < $totalClients; $i++) {
+            $user = $this->getUser(true);
+            $users[] = $user;
+            $session = $user['session'] ?? '';
+
+            $client = $this->getWebsocket(['documents', 'collections'], [
+                'origin' => 'http://localhost',
+                'cookie' => 'a_session_' . $projectId . '=' . $session
+            ]);
+
+            $res = json_decode($client->receive(), true);
+            $this->assertEquals('connected', $res['type']);
+
+            $clients[] = $client;
+        }
+
+        // Step 2: Create Database
+        $database = $this->client->call(Client::METHOD_POST, '/databases', [
+            'content-type' => 'application/json',
+            'x-appwrite-project' => $projectId,
+            'x-appwrite-key' => $apiKey
+        ], [
+            'databaseId' => ID::unique(),
+            'name' => 'BenchmarkDB',
+        ]);
+        $databaseId = $database['body']['$id'];
+
+        // Step 3: Create Collection
+        $collection = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections", [
+            'content-type' => 'application/json',
+            'x-appwrite-project' => $projectId,
+            'x-appwrite-key' => $apiKey
+        ], [
+            'collectionId' => ID::unique(),
+            'name' => 'Actors',
+            'permissions' => [],
+            'documentSecurity' => true,
+        ]);
+        $collectionId = $collection['body']['$id'];
+
+        // Step 4: Create String Attribute
+        $attribute = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections/{$collectionId}/attributes/string", [
+            'content-type' => 'application/json',
+            'x-appwrite-project' => $projectId,
+            'x-appwrite-key' => $apiKey
+        ], [
+            'key' => 'name',
+            'size' => 128,
+            'required' => true
+        ]);
+        $this->assertEquals(202, $attribute['headers']['status-code']);
+        sleep(2); // wait for attribute propagation
+
+        // Step 5: Create documents - each targeting a different user
+        $documents = [];
+        foreach ($users as $i => $user) {
+            $userId = $user['$id'];
+            $permissions = [Permission::read(Role::user($userId))];
+
+            for ($j = 0; $j < $subsPerClient; $j++) {
+                $documents[] = [
+                    '$id' => ID::unique(),
+                    'name' => "Doc {$i}-{$j}",
+                    '$permissions' => $permissions
+                ];
+            }
+        }
+
+
+        // Step 6: Send all documents using bulk endpoint
+        $latencies = [];
+        $start = microtime(true);
+
+        // Split documents into chunks of 100
+        $chunks = array_chunk($documents, 100);
+        foreach ($chunks as $index => $chunk) {
+            $chunkStart = microtime(true);
+
+            $response = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections/{$collectionId}/documents", [
+                'content-type' => 'application/json',
+                'x-appwrite-project' => $projectId,
+                'x-appwrite-key' => $apiKey
+            ], [
+                'documents' => $chunk
+            ]);
+
+            $this->assertEquals(201, $response['headers']['status-code']);
+        }
+
+        $recvStart = microtime(true);
+
+        // Step 7: Receive realtime messages for each client
+        foreach ($clients as $i => $client) {
+            $payload = json_decode($client->receive(), true);
+            $this->assertEquals('event', $payload['type']);
+            $this->assertArrayHasKey('data', $payload);
+            $docs = $payload['data']['payload']['documents'] ?? [];
+
+            $latencies[] = (microtime(true) - $recvStart) * 1000;
+        }
+
+        $end = microtime(true);
+
+        // Step 8: Output metrics
+        $avgLatency = array_sum($latencies) / count($latencies);
+        $minLatency = min($latencies);
+        $maxLatency = max($latencies);
+        $totalDocs = $totalClients * $subsPerClient;
+
+        $durationTotal = ($end - $start) * 1000;
+        $durationBulkPost = ($recvStart - $start) * 1000;
+        $durationRealtimeRecv = ($end - $recvStart) * 1000;
+
+        $avgLatency = array_sum($latencies) / count($latencies);
+        $minLatency = min($latencies);
+        $maxLatency = max($latencies);
+        $totalDocs = $totalClients * $subsPerClient;
+
+        echo "\n=== Realtime Bulk Benchmark (Specific document can be read by a specic set of users having role(userId)) ===\n";
+        echo "Bulk Document POST Time: " . number_format($durationBulkPost, 2) . " ms\n";
+        echo "Realtime Delivery Time: " . number_format($durationRealtimeRecv, 2) . " ms\n";
+        echo "Total End-to-End Time: " . number_format($durationTotal, 2) . " ms\n\n";
+
+        echo "Avg Latency per Client: " . number_format($avgLatency, 2) . " ms\n";
+        echo "Min Latency: " . number_format($minLatency, 2) . " ms\n";
+        echo "Max Latency: " . number_format($maxLatency, 2) . " ms\n\n";
+
+        echo "Clients: {$totalClients}\n";
+        echo "Subscriptions per Client: {$subsPerClient}\n";
+        echo "Total Documents: {$totalDocs}\n";
+
+        // Step 9: Cleanup
+        foreach ($clients as $client) {
+            $client->close();
+        }
+    }
+
+    public function testRealtimeBulkBenchmarkPerformanceWithEveryRoleDocMap()
     {
         $projectId = $this->getProject()['$id'];
         $apiKey = $this->getProject()['apiKey'];
@@ -2121,7 +1880,7 @@ class RealtimeCustomClientTest extends Scope
         $maxLatency = max($latencies);
         $totalDocs = $docsPerClient * $totalClients;
 
-        echo "\n=== Realtime Bulk Benchmark (Each document is having permission for different user. Means a doc specifically with permission of userid) ===\n";
+        echo "\n=== Realtime Bulk Benchmark (Each document can be ready by everyone) ===\n";
         echo "Bulk Document POST Time: " . number_format($durationBulkPost, 2) . " ms\n";
         echo "Realtime Delivery Time: " . number_format($durationRealtimeRecv, 2) . " ms\n";
         echo "Total End-to-End Time: " . number_format($durationTotal, 2) . " ms\n\n";
@@ -2133,155 +1892,6 @@ class RealtimeCustomClientTest extends Scope
         echo "Total Documents: {$totalDocs}\n";
 
         // Cleanup
-        foreach ($clients as $client) {
-            $client->close();
-        }
-    }
-
-    public function testRealtimeBulkBenchmarkPerformanceWithEveryRoleDocMap()
-    {
-        $projectId = $this->getProject()['$id'];
-        $apiKey = $this->getProject()['apiKey'];
-        $totalClients = 100;
-        $subsPerClient = 10;
-
-        $clients = [];
-        $users = [];
-
-        // Step 1: Create Users and WebSocket Clients
-        for ($i = 0; $i < $totalClients; $i++) {
-            $user = $this->getUser(true);
-            $users[] = $user;
-            $session = $user['session'] ?? '';
-
-            $client = $this->getWebsocket(['documents', 'collections'], [
-                'origin' => 'http://localhost',
-                'cookie' => 'a_session_' . $projectId . '=' . $session
-            ]);
-
-            $res = json_decode($client->receive(), true);
-            $this->assertEquals('connected', $res['type']);
-
-            $clients[] = $client;
-        }
-
-        // Step 2: Create Database
-        $database = $this->client->call(Client::METHOD_POST, '/databases', [
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $projectId,
-            'x-appwrite-key' => $apiKey
-        ], [
-            'databaseId' => ID::unique(),
-            'name' => 'BenchmarkDB',
-        ]);
-        $databaseId = $database['body']['$id'];
-
-        // Step 3: Create Collection
-        $collection = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections", [
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $projectId,
-            'x-appwrite-key' => $apiKey
-        ], [
-            'collectionId' => ID::unique(),
-            'name' => 'Actors',
-            'permissions' => [],
-            'documentSecurity' => true,
-        ]);
-        $collectionId = $collection['body']['$id'];
-
-        // Step 4: Create String Attribute
-        $attribute = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections/{$collectionId}/attributes/string", [
-            'content-type' => 'application/json',
-            'x-appwrite-project' => $projectId,
-            'x-appwrite-key' => $apiKey
-        ], [
-            'key' => 'name',
-            'size' => 128,
-            'required' => true
-        ]);
-        $this->assertEquals(202, $attribute['headers']['status-code']);
-        sleep(2); // wait for attribute propagation
-
-        // Step 5: Create documents - each targeting a different user
-        $documents = [];
-        foreach ($users as $i => $user) {
-            $userId = $user['$id'];
-            $permissions = [Permission::read(Role::user($userId))];
-
-            for ($j = 0; $j < $subsPerClient; $j++) {
-                $documents[] = [
-                    '$id' => ID::unique(),
-                    'name' => "Doc {$i}-{$j}",
-                    '$permissions' => $permissions
-                ];
-            }
-        }
-
-
-        // Step 6: Send all documents using bulk endpoint
-        $latencies = [];
-        $start = microtime(true);
-
-        // Split documents into chunks of 100
-        $chunks = array_chunk($documents, 100);
-        foreach ($chunks as $index => $chunk) {
-            $chunkStart = microtime(true);
-
-            $response = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections/{$collectionId}/documents", [
-                'content-type' => 'application/json',
-                'x-appwrite-project' => $projectId,
-                'x-appwrite-key' => $apiKey
-            ], [
-                'documents' => $chunk
-            ]);
-
-            $this->assertEquals(201, $response['headers']['status-code']);
-        }
-
-        $recvStart = microtime(true);
-
-        // Step 7: Receive realtime messages for each client
-        foreach ($clients as $i => $client) {
-            $payload = json_decode($client->receive(), true);
-
-            $this->assertEquals('event', $payload['type']);
-            $this->assertArrayHasKey('data', $payload);
-            $docs = $payload['data']['payload']['documents'] ?? [];
-
-            $latencies[] = (microtime(true) - $recvStart) * 1000;
-        }
-
-        $end = microtime(true);
-
-        // Step 8: Output metrics
-        $avgLatency = array_sum($latencies) / count($latencies);
-        $minLatency = min($latencies);
-        $maxLatency = max($latencies);
-        $totalDocs = $totalClients * $subsPerClient;
-
-        $durationTotal = ($end - $start) * 1000;
-        $durationBulkPost = ($recvStart - $start) * 1000;
-        $durationRealtimeRecv = ($end - $recvStart) * 1000;
-
-        $avgLatency = array_sum($latencies) / count($latencies);
-        $minLatency = min($latencies);
-        $maxLatency = max($latencies);
-        $totalDocs = $totalClients * $subsPerClient;
-
-        echo "\n=== Realtime Bulk Benchmark (Each document can be read by every users) ===\n";
-        echo "Bulk Document POST Time: " . number_format($durationBulkPost, 2) . " ms\n";
-        echo "Realtime Delivery Time: " . number_format($durationRealtimeRecv, 2) . " ms\n";
-        echo "Total End-to-End Time: " . number_format($durationTotal, 2) . " ms\n\n";
-
-        echo "Avg Latency per Client: " . number_format($avgLatency, 2) . " ms\n";
-        echo "Min Latency: " . number_format($minLatency, 2) . " ms\n";
-        echo "Max Latency: " . number_format($maxLatency, 2) . " ms\n\n";
-
-        echo "Clients: {$totalClients}\n";
-        echo "Subscriptions per Client: {$subsPerClient}\n";
-        echo "Total Documents: {$totalDocs}\n";
-
-        // Step 9: Cleanup
         foreach ($clients as $client) {
             $client->close();
         }
