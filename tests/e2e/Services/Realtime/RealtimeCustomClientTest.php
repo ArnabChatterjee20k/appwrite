@@ -1610,4 +1610,282 @@ class RealtimeCustomClientTest extends Scope
 
         $client->close();
     }
+    public function testRealtimeBulkBenchmarkPerformanceWithEveryRoleDocMap()
+    {
+        $projectId = $this->getProject()['$id'];
+        $apiKey = $this->getProject()['apiKey'];
+        $totalClients = 100;
+        $subsPerClient = 10;
+        $clients = [];
+        $users = [];
+
+        // Step 1: Create Users and WebSocket Clients
+        for ($i = 0; $i < $totalClients; $i++) {
+            $user = $this->getUser(true);
+            $users[] = $user;
+            $session = $user['session'] ?? '';
+
+            $client = $this->getWebsocket(['documents', 'collections'], [
+                'origin' => 'http://localhost',
+                'cookie' => 'a_session_' . $projectId . '=' . $session
+            ]);
+
+            $res = json_decode($client->receive(), true);
+            $this->assertEquals('connected', $res['type']);
+
+            $clients[] = $client;
+        }
+
+        // Step 2: Create Database
+        $database = $this->client->call(Client::METHOD_POST, '/databases', [
+            'content-type' => 'application/json',
+            'x-appwrite-project' => $projectId,
+            'x-appwrite-key' => $apiKey
+        ], [
+            'databaseId' => ID::unique(),
+            'name' => 'BenchmarkDB',
+        ]);
+        $databaseId = $database['body']['$id'];
+
+        // Step 3: Create Collection
+        $collection = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections", [
+            'content-type' => 'application/json',
+            'x-appwrite-project' => $projectId,
+            'x-appwrite-key' => $apiKey
+        ], [
+            'collectionId' => ID::unique(),
+            'name' => 'Actors',
+            'permissions' => [],
+            'documentSecurity' => true,
+        ]);
+        $collectionId = $collection['body']['$id'];
+
+        // Step 4: Create String Attribute
+        $attribute = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections/{$collectionId}/attributes/string", [
+            'content-type' => 'application/json',
+            'x-appwrite-project' => $projectId,
+            'x-appwrite-key' => $apiKey
+        ], [
+            'key' => 'name',
+            'size' => 128,
+            'required' => true
+        ]);
+        $this->assertEquals(202, $attribute['headers']['status-code']);
+        sleep(2); // wait for attribute propagation
+
+        // Step 5: Create documents - each targeting a different user
+        $documents = [];
+        foreach ($users as $i => $user) {
+            $userId = $user['$id'];
+            $permissions = [Permission::read(Role::user($userId))];
+
+            for ($j = 0; $j < $subsPerClient; $j++) {
+                $documents[] = [
+                    '$id' => ID::unique(),
+                    'name' => "Doc {$i}-{$j}",
+                    '$permissions' => $permissions
+                ];
+            }
+        }
+
+
+        // Step 6: Send all documents using bulk endpoint
+        $latencies = [];
+        $start = microtime(true);
+
+        // Split documents into chunks of 100
+        $chunks = array_chunk($documents, 100);
+        foreach ($chunks as $index => $chunk) {
+            $chunkStart = microtime(true);
+
+            $response = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections/{$collectionId}/documents", [
+                'content-type' => 'application/json',
+                'x-appwrite-project' => $projectId,
+                'x-appwrite-key' => $apiKey
+            ], [
+                'documents' => $chunk
+            ]);
+
+            $this->assertEquals(201, $response['headers']['status-code']);
+        }
+
+        $recvStart = microtime(true);
+
+        // Step 7: Receive realtime messages for each client
+        foreach ($clients as $i => $client) {
+            $payload = json_decode($client->receive(), true);
+            $this->assertEquals('event', $payload['type']);
+            $this->assertArrayHasKey('data', $payload);
+            $docs = $payload['data']['payload']['documents'] ?? [];
+
+            $latencies[] = (microtime(true) - $recvStart) * 1000;
+        }
+
+        $end = microtime(true);
+
+        // Step 8: Output metrics
+        $avgLatency = array_sum($latencies) / count($latencies);
+        $minLatency = min($latencies);
+        $maxLatency = max($latencies);
+        $totalDocs = $totalClients * $subsPerClient;
+
+        $durationTotal = ($end - $start) * 1000;
+        $durationBulkPost = ($recvStart - $start) * 1000;
+        $durationRealtimeRecv = ($end - $recvStart) * 1000;
+
+        $avgLatency = array_sum($latencies) / count($latencies);
+        $minLatency = min($latencies);
+        $maxLatency = max($latencies);
+        $totalDocs = $totalClients * $subsPerClient;
+
+        echo "\n=== Realtime Bulk Benchmark (Specific document can be read by a specic set of users having role(userId)) ===\n";
+        echo "Bulk Document POST Time: " . number_format($durationBulkPost, 2) . " ms\n";
+        echo "Realtime Delivery Time: " . number_format($durationRealtimeRecv, 2) . " ms\n";
+        echo "Total End-to-End Time: " . number_format($durationTotal, 2) . " ms\n\n";
+
+        echo "Avg Latency per Client: " . number_format($avgLatency, 2) . " ms\n";
+        echo "Min Latency: " . number_format($minLatency, 2) . " ms\n";
+        echo "Max Latency: " . number_format($maxLatency, 2) . " ms\n\n";
+
+        echo "Clients: {$totalClients}\n";
+        echo "Subscriptions per Client: {$subsPerClient}\n";
+        echo "Total Documents: {$totalDocs}\n";
+
+        // Step 9: Cleanup
+        foreach ($clients as $client) {
+            $client->close();
+        }
+    }
+
+    public function testRealtimeBulkBenchmarkPerformanceWithUniqueRoleDocMap()
+    {
+        $projectId = $this->getProject()['$id'];
+        $apiKey = $this->getProject()['apiKey'];
+        $totalClients = 100;
+        $docsPerClient = 10;
+
+        $clients = [];
+
+        // Step 1: Create WebSocket Clients
+        for ($i = 0; $i < $totalClients; $i++) {
+            $user = $this->getUser(true);
+            $session = $user['session'] ?? '';
+
+            $client = $this->getWebsocket(['documents', 'collections'], [
+                'origin' => 'http://localhost',
+                'cookie' => 'a_session_' . $projectId . '=' . $session
+            ]);
+
+            $res = json_decode($client->receive(), true);
+            $this->assertEquals('connected', $res['type']);
+
+            $clients[] = $client;
+        }
+
+        // Step 2: Create Database
+        $database = $this->client->call(Client::METHOD_POST, '/databases', [
+            'content-type' => 'application/json',
+            'x-appwrite-project' => $projectId,
+            'x-appwrite-key' => $apiKey
+        ], [
+            'databaseId' => ID::unique(),
+            'name' => 'BestCaseDB',
+        ]);
+        $databaseId = $database['body']['$id'];
+
+        // Step 3: Create Collection
+        $collection = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections", [
+            'content-type' => 'application/json',
+            'x-appwrite-project' => $projectId,
+            'x-appwrite-key' => $apiKey
+        ], [
+            'collectionId' => ID::unique(),
+            'name' => 'PublicActors',
+            'permissions' => [],
+            'documentSecurity' => true,
+        ]);
+        $collectionId = $collection['body']['$id'];
+
+        // Step 4: Add Attribute
+        $attribute = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections/{$collectionId}/attributes/string", [
+            'content-type' => 'application/json',
+            'x-appwrite-project' => $projectId,
+            'x-appwrite-key' => $apiKey
+        ], [
+            'key' => 'name',
+            'size' => 128,
+            'required' => true
+        ]);
+        $this->assertEquals(202, $attribute['headers']['status-code']);
+        sleep(2);
+
+        // Step 5: Create Documents with read:any() permission
+        $documents = [];
+        $permissions = [Permission::read(Role::any())];
+
+        for ($i = 0; $i < $totalClients * $docsPerClient; $i++) {
+            $documents[] = [
+                '$id' => ID::unique(),
+                'name' => "Doc {$i}",
+                '$permissions' => $permissions
+            ];
+        }
+
+        $latencies = [];
+        $start = microtime(true);
+
+        // Step 6: Send bulk documents
+        $chunks = array_chunk($documents, 100);
+        foreach ($chunks as $chunk) {
+            $response = $this->client->call(Client::METHOD_POST, "/databases/{$databaseId}/collections/{$collectionId}/documents", [
+                'content-type' => 'application/json',
+                'x-appwrite-project' => $projectId,
+                'x-appwrite-key' => $apiKey
+            ], [
+                'documents' => $chunk
+            ]);
+            $this->assertEquals(201, $response['headers']['status-code']);
+        }
+
+        $recvStart = microtime(true);
+
+        // Step 7: Each client receives all documents
+        foreach ($clients as $client) {
+            $payload = json_decode($client->receive(), true);
+            $this->assertEquals('event', $payload['type']);
+
+            $docs = $payload['data']['payload']['documents'] ?? [];
+            // commenting this -> as we are doing bulk in chunks
+            // $this->assertCount($docsPerClient * $totalClients, $docs);
+
+            $latencies[] = (microtime(true) - $recvStart) * 1000;
+        }
+
+        $end = microtime(true);
+
+        // Step 8: Output Metrics
+        $durationTotal = ($end - $start) * 1000;
+        $durationBulkPost = ($recvStart - $start) * 1000;
+        $durationRealtimeRecv = ($end - $recvStart) * 1000;
+        $avgLatency = array_sum($latencies) / count($latencies);
+        $minLatency = min($latencies);
+        $maxLatency = max($latencies);
+        $totalDocs = $docsPerClient * $totalClients;
+
+        echo "\n=== Realtime Bulk Benchmark (Each document can be ready by everyone) ===\n";
+        echo "Bulk Document POST Time: " . number_format($durationBulkPost, 2) . " ms\n";
+        echo "Realtime Delivery Time: " . number_format($durationRealtimeRecv, 2) . " ms\n";
+        echo "Total End-to-End Time: " . number_format($durationTotal, 2) . " ms\n\n";
+        echo "Avg Latency per Client: " . number_format($avgLatency, 2) . " ms\n";
+        echo "Min Latency: " . number_format($minLatency, 2) . " ms\n";
+        echo "Max Latency: " . number_format($maxLatency, 2) . " ms\n\n";
+        echo "Clients: {$totalClients}\n";
+        echo "Docs per Client (All Receive All): {$docsPerClient}\n";
+        echo "Total Documents: {$totalDocs}\n";
+
+        // Cleanup
+        foreach ($clients as $client) {
+            $client->close();
+        }
+    }
 }
