@@ -72,7 +72,6 @@ class Create extends CollectionAction
             ->param('collectionId', '', fn (Database $dbForProject) => new CustomId(false, $dbForProject->getAdapter()->getMaxUIDLength()), 'Unique Id. Choose a custom ID or generate a random ID with `ID.unique()`. Valid chars are a-z, A-Z, 0-9, period, hyphen, and underscore. Can\'t start with a special char. Max length is 36 chars.', false, ['dbForProject'])
             ->param('name', '', new Text(128), 'Collection name. Max length: 128 chars.')
             ->param('dimensions', 0, new Integer(), 'Embedding dimensions.')
-            ->param('embeddingModel', '', new WhiteList((new Ollama())->getModels()), 'Embedding model identifier.')
             ->param('permissions', null, new Permissions(APP_LIMIT_ARRAY_PARAMS_SIZE), 'An array of permissions strings. By default, no user is granted with any permissions. [Learn more about permissions](https://appwrite.io/docs/permissions).', true)
             ->param('documentSecurity', false, new Boolean(true), 'Enables configuring permissions for individual documents. A user needs one of document or collection level permissions to access a document. [Learn more about permissions](https://appwrite.io/docs/permissions).', true)
             ->param('enabled', true, new Boolean(), 'Is collection enabled? When set to \'disabled\', users cannot access the collection but Server SDKs with and API key can still read and write to the collection. No data is lost when this is toggled.', true)
@@ -83,7 +82,7 @@ class Create extends CollectionAction
             ->callback($this->action(...));
     }
 
-    public function action(string $databaseId, string $collectionId, string $name, int $dimensions, string $embeddingModel, ?array $permissions, bool $documentSecurity, bool $enabled, UtopiaResponse $response, Database $dbForProject, callable $getDatabasesDB, Event $queueForEvents): void
+    public function action(string $databaseId, string $collectionId, string $name, int $dimensions, ?array $permissions, bool $documentSecurity, bool $enabled, UtopiaResponse $response, Database $dbForProject, callable $getDatabasesDB, Event $queueForEvents): void
     {
         $database = Authorization::skip(fn () => $dbForProject->getDocument('databases', $databaseId));
 
@@ -106,7 +105,6 @@ class Create extends CollectionAction
                 'enabled' => $enabled,
                 'name' => $name,
                 'dimensions' => $dimensions,
-                'embeddingModel' => $embeddingModel,
                 'search' => \implode(' ', [$collectionId, $name]),
             ]));
 
@@ -150,6 +148,39 @@ class Create extends CollectionAction
             throw new Exception($this->getInvalidIndexException());
         } catch (LimitException) {
             throw new Exception($this->getLimitException());
+        }
+
+        // Create attribute metadata documents in the attributes table
+        // This is necessary so that indexes can find the attributes when they're created
+        foreach ($collections['defaultAttributes'] as $attributeConfig) {
+            $key = \is_string($attributeConfig['$id']) ? $attributeConfig['$id'] : (string)$attributeConfig['$id'];
+            $size = $key === 'embeddings' ? $dimensions : ($attributeConfig['size'] ?? 0);
+            
+            try {
+                $attributeDoc = new Document([
+                    '$id' => ID::custom($database->getSequence() . '_' . $collection->getSequence() . '_' . $key),
+                    'key' => $key,
+                    'databaseInternalId' => $database->getSequence(),
+                    'databaseId' => $databaseId,
+                    'collectionInternalId' => $collection->getSequence(),
+                    'collectionId' => $collectionId,
+                    'type' => $attributeConfig['type'],
+                    'status' => 'available',
+                    'size' => $size,
+                    'required' => $attributeConfig['required'] ?? false,
+                    'signed' => $attributeConfig['signed'] ?? false,
+                    'default' => $attributeConfig['default'] ?? null,
+                    'array' => $attributeConfig['array'] ?? false,
+                    'format' => $attributeConfig['format'] ?? '',
+                    'formatOptions' => $attributeConfig['formatOptions'] ?? [],
+                    'filters' => $attributeConfig['filters'] ?? [],
+                    'options' => $attributeConfig['options'] ?? [],
+                ]);
+                
+                $dbForProject->createDocument('attributes', $attributeDoc);
+            } catch (DuplicateException) {
+                // Attribute already exists, skip
+            }
         }
 
         $queueForEvents

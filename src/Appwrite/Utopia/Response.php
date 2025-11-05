@@ -190,6 +190,7 @@ class Response extends SwooleResponse
     public const MODEL_COLLECTION_LIST = 'collectionList';
     public const MODEL_VECTORDB_COLLECTION = 'vectordbCollection';
     public const MODEL_VECTORDB_COLLECTION_LIST = 'vectordbCollectionList';
+    public const MODEL_EMBEDDING = 'embedding';
     public const MODEL_TABLE = 'table';
     public const MODEL_TABLE_LIST = 'tableList';
     public const MODEL_INDEX = 'index';
@@ -497,6 +498,7 @@ class Response extends SwooleResponse
             ->setModel(new BaseList('VCS Content List', self::MODEL_VCS_CONTENT_LIST, 'contents', self::MODEL_VCS_CONTENT))
             // Entities
             ->setModel(new Database())
+            ->setModel(new \Appwrite\Utopia\Response\Model\Embedding())
             // Collection API Models
             ->setModel(new Collection())
             ->setModel(new \Appwrite\Utopia\Response\Model\VectorDBCollection())
@@ -875,7 +877,11 @@ class Response extends SwooleResponse
 
         $this
             ->setContentType(Response::CONTENT_TYPE_YAML)
-            ->send(\yaml_emit($data, YAML_UTF8_ENCODING));
+            ->send((function(array $payload) {
+                $func = 'yaml_emit';
+                $encoding = \defined('YAML_UTF8_ENCODING') ? \constant('YAML_UTF8_ENCODING') : 0;
+                return \call_user_func($func, $payload, $encoding);
+            })($data));
     }
 
     /**

@@ -13,11 +13,19 @@ use Appwrite\Platform\Modules\Databases\Http\VectorDB\Create as CreateVectorData
 use Appwrite\Platform\Modules\Databases\Http\VectorDB\Delete as DeleteVectorDatabase;
 use Appwrite\Platform\Modules\Databases\Http\VectorDB\Get as GetVectorDatabase;
 use Appwrite\Platform\Modules\Databases\Http\VectorDB\Update as UpdateVectorDatabase;
+use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Indexes\Create as CreateIndex;
+use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Indexes\Delete as DeleteIndex;
+use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Indexes\Get as GetIndex;
+use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Indexes\XList as ListIndexes;
 use Appwrite\Platform\Modules\Databases\Http\VectorDB\Usage\Get as GetVectorDatabaseUsage;
 use Appwrite\Platform\Modules\Databases\Http\VectorDB\Usage\XList as ListVectorDatabaseUsage;
 use Appwrite\Platform\Modules\Databases\Http\VectorDB\XList as ListVectorDatabases;
-use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Documents\Embedding\Create as CreateEmbeddingDocument;
-use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Documents\Embedding\Update as UpdateEmbeddingDocument;
+use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Documents\Create as CreateDocument;
+use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Documents\Update as UpdateDocument;
+use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Documents\Upsert as UpsertDocument;
+use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Documents\Delete as DeleteDocument;
+use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Documents\Get as GetDocument;
+use Appwrite\Platform\Modules\Databases\Http\VectorDB\Collections\Documents\XList as ListDocuments;
 use Utopia\Platform\Service;
 
 class VectorDB extends Base
@@ -26,7 +34,7 @@ class VectorDB extends Base
     {
         $this->registerDatabaseActions($service);
         $this->registerCollectionActions($service);
-        // $this->registerIndexActions($service);
+        $this->registerIndexActions($service);
         $this->registerDocumentActions($service);
         // $this->registerTransactionActions($service);
     }
@@ -53,8 +61,20 @@ class VectorDB extends Base
         $service->addAction(GetCollectionUsage::getName(), new GetCollectionUsage());
     }
 
+    private function registerIndexActions(Service $service): void
+    {
+        $service->addAction(CreateIndex::getName(), new CreateIndex());
+        $service->addAction(GetIndex::getName(), new GetIndex());
+        $service->addAction(DeleteIndex::getName(), new DeleteIndex());
+        $service->addAction(ListIndexes::getName(), new ListIndexes());
+    }
+
     private function registerDocumentActions(Service $service):void{
-        $service->addAction(CreateEmbeddingDocument::getName(), new CreateEmbeddingDocument());
-        $service->addAction(UpdateEmbeddingDocument::getName(), new UpdateEmbeddingDocument());
+        $service->addAction(CreateDocument::getName(), new CreateDocument());
+        $service->addAction(UpdateDocument::getName(), new UpdateDocument());
+        $service->addAction(UpsertDocument::getName(), new UpsertDocument());
+        $service->addAction(GetDocument::getName(), new GetDocument());
+        $service->addAction(ListDocuments::getName(), new ListDocuments());
+        $service->addAction(DeleteDocument::getName(), new DeleteDocument());
     }
 }
